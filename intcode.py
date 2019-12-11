@@ -11,8 +11,9 @@ def default_write(x):
 
 class Program:
   def __init__(self, instructions, read=default_read, write=default_write):
-    self.instructions = instructions[:]
+    self.instructions = instructions[:] + [0] * 1000
     self.inst_ptr = 0
+    self.relative_base = 0
     self.read = read
     self.write = write
 
@@ -29,11 +30,14 @@ class Program:
     for op in OPERATORS:
       if op.code == self.code:
         return op
-    raise ValueError('Unrecognized instruction {}'.format(code))
+    raise ValueError('Unrecognized instruction {}'.format(self.code))
 
 
   def is_immediate(self, ix):
     return (ix - 1) < len(self.modes) and self.modes[ix-1] == '1'
+
+  def is_relative(self, ix):
+    return (ix - 1) < len(self.modes) and self.modes[ix-1] == '2'
 
   def _get_address(self, ix):
     if not (1 <= ix <= self.op.num_args):
@@ -45,6 +49,8 @@ class Program:
     address = self._get_address(ix)
     if self.is_immediate(ix):
       return address
+    if self.is_relative(ix):
+      return self.instructions[self.relative_base + address]
     return self.instructions[address]
 
   def __setitem__(self, ix, val):
@@ -81,6 +87,7 @@ def mul_and_store(prog: Program):
 def read(prog: Program):
   for val in prog.read():
     yield
+  import pdb; pdb.set_trace()
   prog[1] = val
   prog.inst_ptr += 2
 
@@ -108,6 +115,10 @@ def equals(prog: Program):
   prog[3] = 1 if prog[1] == prog[2] else 0
   prog.inst_ptr += 4
 
+def update_relative_base(prog: Program):
+  prog.relative_base += prog[1]
+  prog.inst_ptr += 2
+
 class HaltProgram(StopIteration):
   pass
 
@@ -124,6 +135,7 @@ OPERATORS = [
   Operator(func=jump_if_false, code=6, num_args=2),
   Operator(func=less_than, code=7, num_args=3),
   Operator(func=equals, code=8, num_args=3),
+  Operator(func=update_relative_base, code=9, num_args=1),
 ]
 
 if __name__ == '__main__':
